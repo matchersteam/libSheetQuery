@@ -1,0 +1,15 @@
+{
+  "name": "libsheetquery",
+  "version": "1.0.0",
+  "description": "Project fork from https://www.npmjs.com/package/sheetquery",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build"
+  },
+  "author": "Pertoldi",
+  "license": "ISC",
+  "dependencies": {
+    "@types/google-apps-script": "^1.0.65"
+  }
+}
