@@ -1,6 +1,6 @@
 {
   "name": "libsheetquery",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Project fork from https://www.npmjs.com/package/sheetquery",
   "main": "index.js",
   "scripts": {
