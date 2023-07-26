@@ -1,4 +1,6 @@
 /* eslint-disable */
+
+//🚨 WARNING: Le passage en TS ne fonctionne pas. J'ai copier/coller dans dist/index.js le fichier lib_sheetQuery de gestion-formations
 /**
  * @returns {Spreadsheet} the active spreadsheet
  */
