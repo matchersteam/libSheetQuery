@@ -1,13 +1,13 @@
 /// <reference types="google-apps-script" />
-declare type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
-declare type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
-declare type Range = GoogleAppsScript.Spreadsheet.Range;
-declare type Cell = {
+type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
+type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
+type Range = GoogleAppsScript.Spreadsheet.Range;
+type Cell = {
     [key: string]: Range;
 };
-declare type WhereFn = (row: RowObject) => boolean;
-declare type UpdateFn = (row: RowObject) => RowObject;
-declare type RowObject = {
+type WhereFn = (row: RowObject) => boolean;
+type UpdateFn = (row: RowObject) => RowObject;
+type RowObject = {
     [key: string]: any;
     __meta?: {
         row: number;
@@ -43,7 +43,7 @@ declare class SheetQueryBuilder {
      * @param {number} headingRow
      * @return {SheetQueryBuilder}
      */
-    from(sheetName: string, headingRow?: number): this;
+    from(sheetName: string, headingRow?: number): SheetQueryBuilder;
     /**
      * Apply a filtering function on rows in a spreadsheet before performing an operation on them
      *
