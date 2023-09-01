@@ -5,18 +5,14 @@ declare type Range = GoogleAppsScript.Spreadsheet.Range;
 declare type Cell = {
     [key: string]: Range;
 };
-declare type DictObject = {
+declare type WhereFn = (row: RowObject) => boolean;
+declare type UpdateFn = (row: RowObject) => RowObject;
+declare type RowObject = {
     [key: string]: any;
-};
-declare type RowValues = {
     __meta?: {
         row: number;
         cols: number;
     };
-} & DictObject;
-declare type FilterFunction = (value: RowValues, index: number, array: RowValues[]) => RowValues[];
-declare type Url = {
-    [key: string]: string | null;
 };
 /**
  * Run new sheet query
@@ -24,7 +20,7 @@ declare type Url = {
  * @param {Spreadsheet} activeSpreadsheet Specific spreadsheet to use, or will use SpreadsheetApp.getActiveSpreadsheet() if undefined\
  * @return {SheetQueryBuilder}
  */
-export declare function sheetQuery(activeSpreadsheet?: GoogleAppsScript.Spreadsheet.Spreadsheet | null): SheetQueryBuilder;
+export declare function sheetQuery(activeSpreadsheet?: Spreadsheet | null): SheetQueryBuilder;
 /**
  * SheetQueryBuilder class - Kind of an ORM for Google Sheets
  */
@@ -33,12 +29,13 @@ declare class SheetQueryBuilder {
     headingRow: number;
     _sheetHeadings: string[];
     activeSpreadsheet: Spreadsheet;
-    sheetName: string;
-    _sheet: Sheet | null;
-    whereFn: FilterFunction;
-    _sheetValues: RowValues[];
+    sheetName: string | undefined;
+    whereFn: WhereFn | undefined;
+    _sheet: Sheet | null | undefined;
+    _sheetValues: RowObject[];
+    _numRows: undefined;
     constructor(activeSpreadsheet: Spreadsheet | null);
-    select(columnNames: string[]): this;
+    select(columnNames: string): this;
     /**
      * Name of spreadsheet to perform operations on
      *
@@ -50,39 +47,38 @@ declare class SheetQueryBuilder {
     /**
      * Apply a filtering function on rows in a spreadsheet before performing an operation on them
      *
-     * @param {FilterFunction} fn
+     * @param {WhereFn} fn
      * @return {SheetQueryBuilder}
      */
-    where(fn: FilterFunction): this;
+    where(fn: WhereFn): SheetQueryBuilder;
     /**
      * Delete matched rows from spreadsheet
      *
      * @return {SheetQueryBuilder}
      */
-    deleteRows(): this;
+    deleteRows(): SheetQueryBuilder;
     /**
      * Update matched rows in spreadsheet with provided function
      *
-     * @param {Function} updateFn
+     * @param {} updateFn
      * @return {SheetQueryBuilder}
      */
-    updateRows(updateFn: Function): this;
+    updateRows(updateFn: UpdateFn): SheetQueryBuilder;
     /**
      * Get Sheet object that is referenced by the current query from() method
      *
-     * @return {Sheet}
      */
-    getSheet(): GoogleAppsScript.Spreadsheet.Sheet | null;
+    getSheet(): GoogleAppsScript.Spreadsheet.Sheet | null | undefined;
     /**
      * Get values in sheet from current query + where condition
      */
-    getValues(): RowValues[];
+    getValues(): RowObject[];
     /**
      * Return matching rows from sheet query
      *
-     * @return {RowValues[]}
+     * @return {RowObject[]}
      */
-    getRows(): RowValues[];
+    getRows(): RowObject[];
     /**
      * Get array of headings in current sheet from()
      *
@@ -93,10 +89,10 @@ declare class SheetQueryBuilder {
      * Insert new rows into the spreadsheet
      * Arrays of objects like { Heading: Value }
      *
-     * @param {DictObject[]} newRows - Array of row objects to insert
+     * @param {RowObject[]} newRows - Array of row objects to insert
      * @return {SheetQueryBuilder}
      */
-    insertRows(newRows: DictObject[]): this;
+    insertRows(newRows: RowObject[]): SheetQueryBuilder;
     /**
      * Clear cached values, headings, and flush all operations to sheet
      *
@@ -104,7 +100,7 @@ declare class SheetQueryBuilder {
      */
     clearCache(): this;
     getCells(): Cell[];
-    getUrls(): Url[];
+    getUrls(): {}[];
 }
 export {};
 //# sourceMappingURL=index.d.ts.map

@@ -12,6 +12,6 @@
   "author": "Pertoldi",
   "license": "ISC",
   "devDependencies": {
-    "@types/google-apps-script": "^1.0.65"
+    "@types/google-apps-script": "^1.0.67"
   }
 }
