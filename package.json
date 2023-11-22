@@ -11,6 +11,9 @@
   },
   "author": "Pertoldi",
   "license": "ISC",
+  "dependencies": {
+    "sqlite": "5.1.1"
+  },
   "devDependencies": {
     "@types/google-apps-script": "^1.0.67"
   }

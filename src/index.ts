@@ -1,49 +1,84 @@
-function getActiveSheet() {
-  if (SpreadsheetApp.getActiveSpreadsheet()) return SpreadsheetApp.getActiveSpreadsheet();
-  else throw new Error('No active sheet for sheetQuery!');
+import sqlite3 from 'sqlite3';
+
+type Sqlite = any;
+
+interface SqlCnx{
+  db:Sqlite;
 }
 
-type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
-type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
-type Range = GoogleAppsScript.Spreadsheet.Range;
-type Cell = { [key: string]: Range };
-type WhereFn = (row: RowObject) => boolean;
-type UpdateFn = (row: RowObject) => RowObject;
-type RowObject = {
+type SqlInfo = SqlCnx;
+type SqlTable = any;
+type SqlField = String;
+
+type WhereFn = (row: SqlLine) => boolean;
+type UpdateFn = (row: SqlLine) => SqlLine;
+
+type SqlLine = {
   [key: string]: any;
   __meta?: { row: number; cols: number };
 };
 
+/* {
+  id: "truc"
+  driveId: "..."
+  __meta:{
+      row: 2,
+      cols: 3
+  }
+} */
+
 /**
  * Run new sheet query
  *
- * @param {Spreadsheet} activeSpreadsheet Specific spreadsheet to use, or will use SpreadsheetApp.getActiveSpreadsheet() if undefined\
- * @return {SheetQueryBuilder}
+ * @param {SqlInfo} activeSpreadsheet Specific spreadsheet to use, or will use SpreadsheetApp.getActiveSpreadsheet() if undefined\
+ * @return {SqlTableOrm}
  */
-export function sheetQuery(activeSpreadsheet: Spreadsheet | null = null): SheetQueryBuilder {
-  return new SheetQueryBuilder(activeSpreadsheet);
+export function sheetQuery(activeSpreadsheet: SqlInfo | null = null): SqlTableOrm {
+  return new SqlTableOrm(activeSpreadsheet);
+}
+
+class OrmCnx{
+  private static instance: OrmCnx;
+  private static db:Sqlite;
+
+  private constructor() {
+    OrmCnx.db = new sqlite3.Database("bo-v3.db"); // by process.env.DATABASE_NAME 
+  }
+
+  public static getInstance(): OrmCnx {
+    if (!OrmCnx.instance) {
+      OrmCnx.instance = new OrmCnx();
+    }
+    return OrmCnx.instance;
+  }
+
+  public static getDbCnx(): Sqlite {
+    return OrmCnx.db
+  }
 }
 
 /**
  * SheetQueryBuilder class - Kind of an ORM for Google Sheets
  */
-class SheetQueryBuilder {
+class SqlTableOrm {
   columnNames: string[];
-  headingRow: number;
-  _sheetHeadings: string[];
-  activeSpreadsheet: Spreadsheet;
-  sheetName: string | undefined;
-  whereFn: WhereFn | undefined;
-  _sheet: Sheet | null | undefined;
-  _sheetValues: RowObject[];
-  _numRows: undefined;
+ 
+  allSqlFieldsStr: string[];
+  dataBaseDescriptor: Sqlite | null;
+  tableName: string | undefined;
 
-  constructor(activeSpreadsheet: Spreadsheet | null) {
+  whereFn: WhereFn | undefined;
+  table: SqlTable | null | undefined;
+  lines: SqlLine[];
+  count: undefined;
+
+  
+  constructor(sqlCnxInfo: SqlInfo | null) {
     this.columnNames = [];
-    this.headingRow = 1;
-    this._sheetHeadings = [];
-    this._sheetValues = [];
-    this.activeSpreadsheet = activeSpreadsheet || getActiveSheet();
+
+    this.allSqlFieldsStr = [];
+    this.lines = [];
+    this.dataBaseDescriptor = OrmCnx.getInstance() 
   }
 
   select(columnNames: string) {
@@ -56,11 +91,11 @@ class SheetQueryBuilder {
    *
    * @param {string} sheetName
    * @param {number} headingRow
-   * @return {SheetQueryBuilder}
+   * @return {SqlTableOrm}
    */
-  from(sheetName: string, headingRow: number = 1): SheetQueryBuilder {
-    this.sheetName = sheetName;
-    this.headingRow = headingRow;
+  from(sheetName: string, headingRow: number = 1): SqlTableOrm {
+    this.tableName = sheetName;
+  
     return this;
   }
 
@@ -68,9 +103,9 @@ class SheetQueryBuilder {
    * Apply a filtering function on rows in a spreadsheet before performing an operation on them
    *
    * @param {WhereFn} fn
-   * @return {SheetQueryBuilder}
+   * @return {SqlTableOrm}
    */
-  where(fn: WhereFn): SheetQueryBuilder {
+  where(fn: WhereFn): SqlTableOrm {
     this.whereFn = fn;
     return this;
   }
@@ -78,19 +113,19 @@ class SheetQueryBuilder {
   /**
    * Delete matched rows from spreadsheet
    *
-   * @return {SheetQueryBuilder}
+   * @return {SqlTableOrm}
    */
-  deleteRows(): SheetQueryBuilder {
+  deleteRows(): SqlTableOrm {
     const rows = this.getRows();
     let i = 0;
     rows.forEach((row) => {
-      if (this._sheet && row.__meta) {
-        const deleteRowRange = this._sheet.getRange(row.__meta.row - i, 1, 1, row.__meta.cols);
+      if (this.table && row.__meta) {
+        const deleteRowRange = this.table.getRange(row.__meta.row - i, 1, 1, row.__meta.cols);
         deleteRowRange.deleteCells(SpreadsheetApp.Dimension.ROWS);
         i += 1;
       }
     });
-    this.clearCache();
+  
     return this;
   }
 
@@ -98,16 +133,16 @@ class SheetQueryBuilder {
    * Update matched rows in spreadsheet with provided function
    *
    * @param {} updateFn
-   * @return {SheetQueryBuilder}
+   * @return {SqlTableOrm}
    */
-  updateRows(updateFn: UpdateFn): SheetQueryBuilder {
+  updateRows(updateFn: UpdateFn): SqlTableOrm {
     const rows = this.getRows();
     rows.forEach((row) => {
-      if (this._sheet && row.__meta) {
+      if (this.table && row.__meta) {
 
         const nbCol = row.__meta.cols;
         const numRow = row.__meta.row;
-        const updateRowRange = this._sheet.getRange(row.__meta.row, 1, 1, row.__meta.cols);
+        const updateRowRange = this.table.getRange(row.__meta.row, 1, 1, row.__meta.cols);
         const richTextValues = updateRowRange.getRichTextValues();
         const updatedRow = updateFn(row);
         let arrayValues = [];
@@ -121,7 +156,7 @@ class SheetQueryBuilder {
 
         /* Update arrayValues to add formulas */
         for (let i = 1; i < nbCol + 1; i++) {
-          const range = this._sheet.getRange(numRow, i, 1, 1);
+          const range = this.table.getRange(numRow, i, 1, 1);
           const formula = range.getFormula();
 
           if (formula != '') {
@@ -139,14 +174,14 @@ class SheetQueryBuilder {
               .setText(arrayValues[i - 1])
               .setLinkUrl(richTextValue.getLinkUrl())
               .build();
-            const range = this._sheet.getRange(numRow, i, 1, 1);
+            const range = this.table.getRange(numRow, i, 1, 1);
             range.setRichTextValue(newRichTextValue);
           }
         }
       }
     });
 
-    this.clearCache();
+   
     return this;
   }
 
@@ -155,47 +190,27 @@ class SheetQueryBuilder {
    *
    */
   getSheet() {
-    if (!this._sheet && this.sheetName) {
-      this._sheet = this.activeSpreadsheet.getSheetByName(this.sheetName);
+    if (!this.table && this.tableName) {
+      this.table = this.dataBaseDescriptor.getSheetByName(this.tableName);
     }
-    return this._sheet;
+    return this.table;
   }
 
   /**
    * Get values in sheet from current query + where condition
    */
   getValues() {
-    if (!this._sheetValues) {
-      const zh = this.headingRow - 1;
-      const sheet = this.getSheet();
-
-      if (!sheet) {
-        return [];
-      }
-
-      const rowValues = [];
-      const allValues = sheet.getDataRange().getValues();
-      const sheetValues = allValues.slice(1 + zh);
-      const numCols = sheetValues[0].length;
-      const numRows = sheetValues.length;
-      const headings = (this._sheetHeadings = allValues[zh] || []);
-      for (let r = 0; r < numRows; r++) {
-        const obj = { __meta: { row: r + (this.headingRow + 1), cols: numCols } };
-        for (let c = 0; c < numCols; c++) {
-          // @ts-expect-error: Headings are set already above, so possibility of an error here is nil
-          obj[headings[c]] = sheetValues[r][c]; // @ts-ignore
-        }
-        rowValues.push(obj);
-      }
-      this._sheetValues = rowValues;
+    if (!this.lines) {
+  
+      
     }
-    return this._sheetValues;
+    return this.lines;
   }
 
   /**
    * Return matching rows from sheet query
    *
-   * @return {RowObject[]}
+   * @return {SqlLine[]}
    */
   getRows() {
     const sheetValues = this.getValues();
@@ -208,59 +223,34 @@ class SheetQueryBuilder {
    * @return {string[]}
    */
   getHeadings(): string[] {
-    if (!this._sheetHeadings || !this._sheetHeadings.length) {
-      const zh = this.headingRow - 1;
-      const sheet = this.getSheet();
-      const numCols = sheet!.getLastColumn();
-      this._sheetHeadings = sheet!.getSheetValues(1, 1, this.headingRow, numCols!)[zh];
+    if (!this.allSqlFieldsStr || !this.allSqlFieldsStr.length) {
+      
     }
-    return this._sheetHeadings || [];
+    return this.allSqlFieldsStr || [];
   }
 
   /**
    * Insert new rows into the spreadsheet
    * Arrays of objects like { Heading: Value }
    *
-   * @param {RowObject[]} newRows - Array of row objects to insert
-   * @return {SheetQueryBuilder}
+   * @param {SqlLine[]} newRows - Array of row objects to insert
+   * @return {SqlTableOrm}
    */
-  insertRows(newRows: RowObject[]): SheetQueryBuilder {
-    const sheet = this.getSheet();
-    if (!sheet) return this;
-    const headings = this.getHeadings();
-    newRows.forEach((row) => {
-      if (!row) {
-        return;
-      }
-      const rowValues = headings.map((heading) => {
-        return (heading && row[heading]) || (heading && row[heading] === false) ? row[heading] : '';
-      });
-      sheet?.appendRow(rowValues);
-    });
+  insertRows(newRows: SqlLine[]): SqlTableOrm {
+   
     return this;
   }
 
-  /**
-   * Clear cached values, headings, and flush all operations to sheet
-   *
-   * @return {SheetQueryBuilder}
-   */
-  clearCache() {
-    this._sheetValues = [];
-    this._numRows = undefined;
-    this._sheetHeadings = [];
-    SpreadsheetApp.flush();
-    return this;
-  }
+
 
   getCells() {
-    const rows = this.getRows();
-    const cells: Cell[] = [];
+    const rows:SqlLine[] = this.getRows();
+    const cells: SqlField[] = [];
     rows.forEach((row) => {
-      const cell: Cell = {}
-      for (let i = 0; i < this._sheetHeadings.length; i++) {
-        const heading = this._sheetHeadings[i];
-        cell[heading] = this._sheet!.getRange(row.__meta!.row, i + 1, 1, 1);
+      const cell: SqlField = {}
+      for (let i = 0; i < this.allSqlFieldsStr.length; i++) {
+        const heading = this.allSqlFieldsStr[i];  
+        cell[heading] = this.table!.getRange(row.__meta!.row, i + 1, 1, 1);
       }
       cells.push(cell);
     });
@@ -272,9 +262,9 @@ class SheetQueryBuilder {
     const urls: {}[] = [];
     rows.forEach((row) => {
       const url: { [key: string]: string } = {}
-      for (let i = 0; i < this._sheetHeadings.length; i++) {
-        const heading = this._sheetHeadings[i];
-        const cellRichTextValue = this._sheet!.getRange(row.__meta!.row, i + 1, 1, 1).getRichTextValue();
+      for (let i = 0; i < this.allSqlFieldsStr.length; i++) {
+        const heading = this.allSqlFieldsStr[i];
+        const cellRichTextValue = this.table!.getRange(row.__meta!.row, i + 1, 1, 1).getRichTextValue();
         if (cellRichTextValue) url[heading] = cellRichTextValue.getLinkUrl()!;
       }
       urls.push(url);
