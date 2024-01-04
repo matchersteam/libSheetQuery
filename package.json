@@ -1,17 +1,23 @@
 {
   "name": "libsheetquery",
-  "version": "1.0.8",
+  "version": "2.0.0-beta",
   "description": "Project fork from https://www.npmjs.com/package/sheetquery",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm run clean && tsc --build",
+    "build": "clean && tsc --build",
     "clean": "rm -rf dist"
   },
   "author": "Pertoldi",
   "license": "ISC",
   "devDependencies": {
-    "@types/google-apps-script": "^1.0.67"
+    "@types/google-apps-script": "^1.0.78",
+    "@types/pg": "^8.10.9",
+    "tsc": "^2.0.4",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
   }
 }
